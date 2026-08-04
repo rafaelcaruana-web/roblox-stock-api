@@ -8,11 +8,11 @@ app = Flask(__name__)
 # Popular Roblox game IDs
 # We can expand this to 100 later
 GAME_IDS = {
-    "Grow a Garden": 126884695634066,
-    "Brookhaven": 4924922222,
+    "Grow a Garden": 7436755782,
+    "Brookhaven 🏡RP": 4924922222,
     "Blox Fruits": 2753915549,
-    "Adopt Me": 920587237,
-    "Murder Mystery 2": 142823291
+    "Adopt Me": 383310974,
+    "Murder Mystery 2": 66654135
 }
 
 
