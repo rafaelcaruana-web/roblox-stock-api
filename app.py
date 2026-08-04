@@ -42,19 +42,23 @@ def init_db():
 def get_top_games():
 
     url = (
-        "https://games.roblox.com/v1/games/list"
-        "?model.filter=TopPlayed"
-        "&model.maxRows=100"
+        "https://games.roblox.com/v1/games/"
+        "sort-by-ranking"
+        "?sortOrder=Desc"
+        "&limit=100"
     )
 
     response = requests.get(url)
 
+
     if response.status_code != 200:
-        print("Top games error:", response.text)
+        print("Top games error:")
+        print(response.text)
         return []
 
 
     data = response.json()
+
 
     games = []
 
@@ -67,8 +71,9 @@ def get_top_games():
         })
 
 
-    return games
+    print("Found games:", len(games))
 
+    return games
 
 
 def get_game_stats(ids):
