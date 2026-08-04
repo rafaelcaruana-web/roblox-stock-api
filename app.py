@@ -12,7 +12,6 @@ DATABASE = "stocks.db"
 
 # =========================
 # ROBLOX GAMES
-# Universe IDs
 # =========================
 
 GAMES = {
@@ -97,7 +96,6 @@ def previous_price(game_id):
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
-
     cursor.execute("""
     SELECT price
     FROM history
@@ -125,10 +123,14 @@ def previous_price(game_id):
 
 
 # =========================
-# STOCK CALCULATIONS
+# STOCK PRICE
 # =========================
 
 def calculate_price(players):
+
+    if players <= 0:
+        return 0
+
 
     return round(
         math.log(players + 10) * 100,
@@ -143,7 +145,6 @@ def calculate_price(players):
 # =========================
 
 def get_games():
-
 
     ids = ",".join(
         str(x)
@@ -167,7 +168,6 @@ def get_games():
         return []
 
 
-
     return response.json().get("data",[])
 
 
@@ -186,8 +186,22 @@ def create_market():
 
     for game in games:
 
+        players = game.get(
+            "playing",
+            0
+        )
 
-        players = game["playing"]
+        visits = game.get(
+            "visits",
+            0
+        )
+
+
+        # Remove fake/dead places
+        if players == 0 and visits < 1000000:
+            continue
+
+
 
         price = calculate_price(
             players
@@ -199,7 +213,7 @@ def create_market():
         )
 
 
-        if old:
+        if old and old > 0:
 
             change = round(
                 ((price-old)/old)*100,
@@ -220,7 +234,7 @@ def create_market():
 
             "players": players,
 
-            "visits": game["visits"],
+            "visits": visits,
 
             "price": price,
 
@@ -233,6 +247,13 @@ def create_market():
 
         market.append(stock)
 
+
+
+    # Highest players first
+    market.sort(
+        key=lambda x: x["players"],
+        reverse=True
+    )
 
 
     return market
@@ -270,7 +291,6 @@ def stocks():
 def history(id):
 
     conn = sqlite3.connect(DATABASE)
-
     cursor = conn.cursor()
 
 
