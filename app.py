@@ -7,13 +7,12 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-
 DATABASE = "stocks.db"
 
 
-# -------------------------
-# DATABASE SETUP
-# -------------------------
+# =========================
+# DATABASE
+# =========================
 
 def init_db():
 
@@ -22,14 +21,12 @@ def init_db():
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS price_history (
-
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         universe_id INTEGER,
         name TEXT,
         players INTEGER,
         price REAL,
         timestamp INTEGER
-
     )
     """)
 
@@ -38,23 +35,22 @@ def init_db():
 
 
 
-# -------------------------
+# =========================
 # ROBLOX API
-# -------------------------
+# =========================
 
 def get_top_games():
 
     url = (
         "https://games.roblox.com/v1/games/list"
         "?model.filter=TopPlayed"
-        "&model.limit=100"
+        "&model.maxRows=100"
     )
-
 
     response = requests.get(url)
 
-
     if response.status_code != 200:
+        print("Top games error:", response.text)
         return []
 
 
@@ -77,6 +73,10 @@ def get_top_games():
 
 def get_game_stats(ids):
 
+    if not ids:
+        return []
+
+
     ids = ",".join(
         str(i) for i in ids
     )
@@ -92,55 +92,25 @@ def get_game_stats(ids):
 
 
     if response.status_code != 200:
+        print("Stats error:", response.text)
         return []
 
 
-    return response.json()["data"]
+    return response.json().get("data", [])
 
 
 
 
-# -------------------------
+# =========================
 # STOCK SYSTEM
-# -------------------------
+# =========================
 
 def calculate_price(players):
 
-    # prevents tiny games having $0
     return round(
         math.log(players + 10) * 100,
         2
     )
-
-
-
-def save_price(game):
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-
-    cursor.execute(
-        """
-        INSERT INTO price_history
-        (universe_id,name,players,price,timestamp)
-
-        VALUES (?,?,?,?,?)
-        """,
-
-        (
-            game["id"],
-            game["name"],
-            game["players"],
-            game["price"],
-            int(time.time())
-        )
-    )
-
-
-    conn.commit()
-    conn.close()
-
 
 
 
@@ -150,20 +120,14 @@ def get_previous_price(universe_id):
     cursor = conn.cursor()
 
 
-    cursor.execute(
-        """
-        SELECT price
-        FROM price_history
-
-        WHERE universe_id=?
-
-        ORDER BY timestamp DESC
-
-        LIMIT 1 OFFSET 1
-        """,
-
-        (universe_id,)
-    )
+    cursor.execute("""
+    SELECT price
+    FROM price_history
+    WHERE universe_id=?
+    ORDER BY timestamp DESC
+    LIMIT 1
+    """,
+    (universe_id,))
 
 
     result = cursor.fetchone()
@@ -178,10 +142,38 @@ def get_previous_price(universe_id):
 
 
 
+def save_price(stock):
 
-# -------------------------
-# CREATE MARKET
-# -------------------------
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
+
+
+    cursor.execute("""
+    INSERT INTO price_history
+    (
+        universe_id,
+        name,
+        players,
+        price,
+        timestamp
+    )
+
+    VALUES (?,?,?,?,?)
+    """,
+    (
+        stock["id"],
+        stock["name"],
+        stock["players"],
+        stock["price"],
+        int(time.time())
+    ))
+
+
+    conn.commit()
+    conn.close()
+
+
+
 
 def generate_market():
 
@@ -206,24 +198,22 @@ def generate_market():
 
     for game in stats:
 
+        players = game.get("playing", 0)
 
-        players = game["playing"]
+        visits = game.get("visits", 0)
 
-
-        price = calculate_price(
-            players
-        )
+        price = calculate_price(players)
 
 
-        previous = get_previous_price(
+        old_price = get_previous_price(
             game["id"]
         )
 
 
-        if previous:
+        if old_price:
 
             change = round(
-                ((price - previous) / previous) * 100,
+                ((price - old_price) / old_price) * 100,
                 2
             )
 
@@ -241,7 +231,7 @@ def generate_market():
 
             "players": players,
 
-            "visits": game["visits"],
+            "visits": visits,
 
             "price": price,
 
@@ -252,9 +242,7 @@ def generate_market():
 
         save_price(stock)
 
-
         market.append(stock)
-
 
 
     return market
@@ -262,10 +250,9 @@ def generate_market():
 
 
 
-# -------------------------
+# =========================
 # ROUTES
-# -------------------------
-
+# =========================
 
 @app.route("/")
 def home():
@@ -287,30 +274,21 @@ def stocks():
 
 
 
-
 @app.route("/history/<int:game_id>")
 def history(game_id):
 
     conn = sqlite3.connect(DATABASE)
-
     cursor = conn.cursor()
 
 
-    cursor.execute(
-        """
-        SELECT price,timestamp
-
-        FROM price_history
-
-        WHERE universe_id=?
-
-        ORDER BY timestamp DESC
-
-        LIMIT 100
-        """,
-
-        (game_id,)
-    )
+    cursor.execute("""
+    SELECT price,timestamp
+    FROM price_history
+    WHERE universe_id=?
+    ORDER BY timestamp DESC
+    LIMIT 100
+    """,
+    (game_id,))
 
 
     data = cursor.fetchall()
@@ -323,8 +301,7 @@ def history(game_id):
 
 
 
-# START
-
+# Start database
 init_db()
 
 
