@@ -264,7 +264,7 @@ def update_market():
 
         # UPDATE EVERY 10 SECONDS
 
-        time.sleep(30)
+        time.sleep(60)
 
 
 
