@@ -10,22 +10,50 @@ app = Flask(__name__)
 DATABASE = "stocks.db"
 
 
-# ==========================
+# =========================
+# ROBLOX GAMES
+# Universe IDs
+# =========================
+
+GAMES = {
+    "Grow a Garden": 7436755782,
+    "Adopt Me!": 383310974,
+    "Murder Mystery 2": 66654135,
+    "Blox Fruits": 2753915549,
+    "Brookhaven": 4924922222,
+    "Pet Simulator 99": 8737899170,
+    "Doors": 4282985734,
+    "Tower of Hell": 1962086868,
+    "Jailbreak": 606849621,
+    "Arsenal": 286090429
+}
+
+
+
+# =========================
 # DATABASE
-# ==========================
+# =========================
 
 def init_db():
+
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS price_history (
+    CREATE TABLE IF NOT EXISTS history (
+
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+
         universe_id INTEGER,
+
         name TEXT,
+
         players INTEGER,
+
         price REAL,
+
         timestamp INTEGER
+
     )
     """)
 
@@ -34,143 +62,13 @@ def init_db():
 
 
 
-# ==========================
-# ROBLOX API
-# ==========================
-
-def get_top_games():
-
-    url = (
-        "https://games.roblox.com/v1/games/list"
-        "?model.filter=TopPlayed"
-        "&model.maxRows=100"
-    )
-
-    response = requests.get(url)
-
-    print(response.text)
-
-
-    if response.status_code != 200:
-        return []
-
-
-    data = response.json()
-
-    games = []
-
-
-    for game in data.get("games", []):
-
-        games.append({
-            "place_id": game["id"],
-            "name": game["name"]
-        })
-
-
-    return games
-
-
-
-def convert_to_universe(place_id):
-
-    url = (
-        f"https://apis.roblox.com/universes/v1/"
-        f"places/{place_id}/universe"
-    )
-
-    response = requests.get(url)
-
-
-    if response.status_code != 200:
-        return None
-
-
-    return response.json().get("universeId")
-
-
-
-def get_game_stats(universe_ids):
-
-    if not universe_ids:
-        return []
-
-
-    ids = ",".join(
-        str(x) for x in universe_ids
-    )
-
-
-    url = (
-        "https://games.roblox.com/v1/games"
-        f"?universeIds={ids}"
-    )
-
-
-    response = requests.get(url)
-
-
-    if response.status_code != 200:
-        print(response.text)
-        return []
-
-
-    return response.json().get("data", [])
-
-
-
-# ==========================
-# STOCK SYSTEM
-# ==========================
-
-def calculate_price(players):
-
-    return round(
-        math.log(players + 10) * 100,
-        2
-    )
-
-
-
-def get_previous_price(universe_id):
+def save_history(stock):
 
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
-
     cursor.execute("""
-    SELECT price
-    FROM price_history
-
-    WHERE universe_id=?
-
-    ORDER BY timestamp DESC
-
-    LIMIT 1
-    """,
-    (universe_id,))
-
-
-    result = cursor.fetchone()
-
-    conn.close()
-
-
-    if result:
-        return result[0]
-
-    return None
-
-
-
-def save_price(stock):
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-
-    cursor.execute("""
-    INSERT INTO price_history
+    INSERT INTO history
     (
         universe_id,
         name,
@@ -189,46 +87,105 @@ def save_price(stock):
         int(time.time())
     ))
 
-
     conn.commit()
     conn.close()
 
 
 
+def previous_price(game_id):
 
-def generate_market():
+    conn = sqlite3.connect(DATABASE)
+    cursor = conn.cursor()
 
-    games = get_top_games()
+
+    cursor.execute("""
+    SELECT price
+    FROM history
+
+    WHERE universe_id=?
+
+    ORDER BY timestamp DESC
+
+    LIMIT 1 OFFSET 1
+    """,
+    (game_id,))
 
 
-    if not games:
+    result = cursor.fetchone()
+
+    conn.close()
+
+
+    if result:
+        return result[0]
+
+    return None
+
+
+
+
+# =========================
+# STOCK CALCULATIONS
+# =========================
+
+def calculate_price(players):
+
+    return round(
+        math.log(players + 10) * 100,
+        2
+    )
+
+
+
+
+# =========================
+# ROBLOX DATA
+# =========================
+
+def get_games():
+
+
+    ids = ",".join(
+        str(x)
+        for x in GAMES.values()
+    )
+
+
+    url = (
+        "https://games.roblox.com/v1/games"
+        f"?universeIds={ids}"
+    )
+
+
+    response = requests.get(url)
+
+
+    if response.status_code != 200:
+
+        print(response.text)
+
         return []
 
 
-    universe_ids = []
 
-
-    for game in games:
-
-        universe = convert_to_universe(
-            game["place_id"]
-        )
-
-
-        if universe:
-            universe_ids.append(universe)
+    return response.json().get("data",[])
 
 
 
-    stats = get_game_stats(
-        universe_ids
-    )
 
+# =========================
+# MARKET
+# =========================
+
+def create_market():
+
+    games = get_games()
 
     market = []
 
 
-    for game in stats:
+    for game in games:
+
 
         players = game["playing"]
 
@@ -237,19 +194,20 @@ def generate_market():
         )
 
 
-        old_price = get_previous_price(
+        old = previous_price(
             game["id"]
         )
 
 
-        if old_price:
+        if old:
 
             change = round(
-                ((price-old_price)/old_price)*100,
+                ((price-old)/old)*100,
                 2
             )
 
         else:
+
             change = 0
 
 
@@ -271,7 +229,7 @@ def generate_market():
         }
 
 
-        save_price(stock)
+        save_history(stock)
 
         market.append(stock)
 
@@ -281,9 +239,10 @@ def generate_market():
 
 
 
-# ==========================
+
+# =========================
 # ROUTES
-# ==========================
+# =========================
 
 @app.route("/")
 def home():
@@ -297,25 +256,28 @@ def stocks():
 
     return jsonify({
 
-        "updated": datetime.now().isoformat(),
+        "updated":
+        datetime.now().isoformat(),
 
-        "stocks": generate_market()
+        "stocks":
+        create_market()
 
     })
 
 
 
-@app.route("/history/<int:game_id>")
-def history(game_id):
+@app.route("/history/<int:id>")
+def history(id):
 
     conn = sqlite3.connect(DATABASE)
+
     cursor = conn.cursor()
 
 
     cursor.execute("""
     SELECT price,timestamp
 
-    FROM price_history
+    FROM history
 
     WHERE universe_id=?
 
@@ -323,7 +285,7 @@ def history(game_id):
 
     LIMIT 100
     """,
-    (game_id,))
+    (id,))
 
 
     data = cursor.fetchall()
@@ -339,4 +301,5 @@ init_db()
 
 
 if __name__ == "__main__":
+
     app.run()
