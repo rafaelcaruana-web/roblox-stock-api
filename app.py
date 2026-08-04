@@ -11,20 +11,24 @@ DATABASE = "stocks.db"
 
 
 # =========================
-# ROBLOX GAMES
+# ROBLOX STOCK LIST
 # =========================
 
 GAMES = {
-    "Grow a Garden": 7436755782,
-    "Adopt Me!": 383310974,
-    "Murder Mystery 2": 66654135,
-    "Blox Fruits": 2753915549,
-    "Brookhaven": 4924922222,
-    "Pet Simulator 99": 8737899170,
-    "Doors": 4282985734,
-    "Tower of Hell": 1962086868,
-    "Jailbreak": 606849621,
-    "Arsenal": 286090429
+    "GAGR": {
+        "name": "Grow a Garden",
+        "id": 7436755782
+    },
+
+    "ADPT": {
+        "name": "Adopt Me!",
+        "id": 383310974
+    },
+
+    "MM2": {
+        "name": "Murder Mystery 2",
+        "id": 66654135
+    }
 }
 
 
@@ -123,7 +127,7 @@ def previous_price(game_id):
 
 
 # =========================
-# STOCK PRICE
+# PRICE SYSTEM
 # =========================
 
 def calculate_price(players):
@@ -147,8 +151,8 @@ def calculate_price(players):
 def get_games():
 
     ids = ",".join(
-        str(x)
-        for x in GAMES.values()
+        str(game["id"])
+        for game in GAMES.values()
     )
 
 
@@ -174,7 +178,7 @@ def get_games():
 
 
 # =========================
-# MARKET
+# CREATE MARKET
 # =========================
 
 def create_market():
@@ -197,7 +201,7 @@ def create_market():
         )
 
 
-        # Remove fake/dead places
+        # Remove fake/dead games
         if players == 0 and visits < 1000000:
             continue
 
@@ -226,11 +230,24 @@ def create_market():
 
 
 
+        symbol = "UNKNOWN"
+
+
+        for ticker, info in GAMES.items():
+
+            if info["id"] == game["id"]:
+
+                symbol = ticker
+
+
+
         stock = {
 
-            "id": game["id"],
+            "symbol": symbol,
 
             "name": game["name"],
+
+            "id": game["id"],
 
             "players": players,
 
@@ -249,7 +266,6 @@ def create_market():
 
 
 
-    # Highest players first
     market.sort(
         key=lambda x: x["players"],
         reverse=True
