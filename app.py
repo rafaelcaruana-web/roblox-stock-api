@@ -14,12 +14,11 @@ GAME_IDS = {
     "Blox Fruits": 2753915549,
     "Brookhaven": 4924922222,
     "Pet Simulator 99": 8737899170,
+    "Doors": 4282985734,
     "Tower of Hell": 1962086868,
-    "Doors": 6516141723,
     "Jailbreak": 606849621,
     "Arsenal": 286090429
 }
-
 
 # Stores previous player counts
 previous_players = {}
@@ -80,13 +79,14 @@ def get_game_data():
         change = calculate_change(name, players)
 
 
-        stocks.append({
+        if players > 0 or game["visits"] > 1000000:
+            stocks.append({
             "name": name,
             "players": players,
             "price": price,
             "change": change,
-            "visits": game["visits"]
-        })
+        "   visits": game["visits"]
+    })
 
 
     return stocks
