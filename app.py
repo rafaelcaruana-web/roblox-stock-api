@@ -7,7 +7,18 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+
 DATABASE = "stocks.db"
+
+
+# =========================
+# CACHE
+# =========================
+
+market_cache = []
+last_update = 0
+CACHE_TIME = 20
+
 
 
 # =========================
@@ -32,17 +43,6 @@ GAMES = {
     }
 
 }
-
-
-
-# =========================
-# CACHE
-# =========================
-
-market_cache = []
-last_update = 0
-
-CACHE_TIME = 20
 
 
 
@@ -83,6 +83,8 @@ def init_db():
 
 
 
+
+
 def save_history(stock):
 
     conn = sqlite3.connect(DATABASE)
@@ -92,6 +94,7 @@ def save_history(stock):
 
     cursor.execute("""
     INSERT INTO history
+
     (
         universe_id,
         name,
@@ -101,6 +104,7 @@ def save_history(stock):
     )
 
     VALUES (?,?,?,?,?)
+
     """,
 
     (
@@ -115,6 +119,7 @@ def save_history(stock):
     conn.commit()
 
     conn.close()
+
 
 
 
@@ -178,6 +183,7 @@ def calculate_price(players):
 
 
 
+
 # =========================
 # ROBLOX API
 # =========================
@@ -213,7 +219,7 @@ def get_games():
 
     except Exception as e:
 
-        print("Roblox error:", e)
+        print(e)
 
         return []
 
@@ -221,26 +227,12 @@ def get_games():
 
 
 
+
 # =========================
-# CREATE MARKET
+# MARKET CREATION
 # =========================
 
 def create_market():
-
-    global market_cache
-    global last_update
-
-
-    # Use cache if still fresh
-
-    if market_cache and time.time() - last_update < CACHE_TIME:
-
-        return market_cache
-
-
-
-    print("Updating stocks...")
-
 
     games = get_games()
 
@@ -264,23 +256,12 @@ def create_market():
         )
 
 
-        # Remove dead games
+
+        # remove dead games
 
         if players == 0 and visits < 1000000:
 
             continue
-
-
-
-        symbol = "UNKNOWN"
-
-
-
-        for ticker,info in GAMES.items():
-
-            if info["id"] == game["id"]:
-
-                symbol = ticker
 
 
 
@@ -296,6 +277,7 @@ def create_market():
         )
 
 
+
         if old and old > 0:
 
             change = round(
@@ -306,6 +288,20 @@ def create_market():
         else:
 
             change = 0
+
+
+
+
+
+        symbol = "UNKNOWN"
+
+
+
+        for ticker,info in GAMES.items():
+
+            if info["id"] == game["id"]:
+
+                symbol = ticker
 
 
 
@@ -338,6 +334,7 @@ def create_market():
 
 
 
+
     market.sort(
         key=lambda x:x["players"],
         reverse=True
@@ -345,18 +342,8 @@ def create_market():
 
 
 
-    market_cache = market
+    return market
 
-    last_update = time.time()
-
-
-    print(
-        "Stocks updated:",
-        len(market_cache)
-    )
-
-
-    return market_cache
 
 
 
@@ -378,13 +365,38 @@ def home():
 @app.route("/stocks")
 def stocks():
 
+    global market_cache
+    global last_update
+
+
+    now = time.time()
+
+
+
+    if (
+        not market_cache
+        or now - last_update > CACHE_TIME
+    ):
+
+
+        print("Refreshing stocks...")
+
+
+        market_cache = create_market()
+
+
+        last_update = now
+
+
+
+
     return jsonify({
 
         "updated":
         datetime.now().isoformat(),
 
         "stocks":
-        create_market()
+        market_cache
 
     })
 
@@ -398,6 +410,7 @@ def history(id):
     conn = sqlite3.connect(DATABASE)
 
     cursor = conn.cursor()
+
 
 
     cursor.execute("""
@@ -415,10 +428,13 @@ def history(id):
     (id,))
 
 
+
     data = cursor.fetchall()
 
 
+
     conn.close()
+
 
 
     return jsonify(data)
@@ -426,6 +442,11 @@ def history(id):
 
 
 
+
+
+# =========================
+# START
+# =========================
 
 init_db()
 
