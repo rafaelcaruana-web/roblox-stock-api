@@ -10,12 +10,11 @@ app = Flask(__name__)
 DATABASE = "stocks.db"
 
 
-# =========================
+# ==========================
 # DATABASE
-# =========================
+# ==========================
 
 def init_db():
-
     conn = sqlite3.connect(DATABASE)
     cursor = conn.cursor()
 
@@ -35,30 +34,28 @@ def init_db():
 
 
 
-# =========================
+# ==========================
 # ROBLOX API
-# =========================
+# ==========================
 
 def get_top_games():
 
     url = (
-        "https://games.roblox.com/v1/games/"
-        "sort-by-ranking"
-        "?sortOrder=Desc"
-        "&limit=100"
+        "https://games.roblox.com/v1/games/list"
+        "?model.filter=TopPlayed"
+        "&model.maxRows=100"
     )
 
     response = requests.get(url)
 
+    print(response.text)
+
 
     if response.status_code != 200:
-        print("Top games error:")
-        print(response.text)
         return []
 
 
     data = response.json()
-
 
     games = []
 
@@ -66,24 +63,41 @@ def get_top_games():
     for game in data.get("games", []):
 
         games.append({
-            "id": game["id"],
+            "place_id": game["id"],
             "name": game["name"]
         })
 
 
-    print("Found games:", len(games))
-
     return games
 
 
-def get_game_stats(ids):
 
-    if not ids:
+def convert_to_universe(place_id):
+
+    url = (
+        f"https://apis.roblox.com/universes/v1/"
+        f"places/{place_id}/universe"
+    )
+
+    response = requests.get(url)
+
+
+    if response.status_code != 200:
+        return None
+
+
+    return response.json().get("universeId")
+
+
+
+def get_game_stats(universe_ids):
+
+    if not universe_ids:
         return []
 
 
     ids = ",".join(
-        str(i) for i in ids
+        str(x) for x in universe_ids
     )
 
 
@@ -97,7 +111,7 @@ def get_game_stats(ids):
 
 
     if response.status_code != 200:
-        print("Stats error:", response.text)
+        print(response.text)
         return []
 
 
@@ -105,10 +119,9 @@ def get_game_stats(ids):
 
 
 
-
-# =========================
+# ==========================
 # STOCK SYSTEM
-# =========================
+# ==========================
 
 def calculate_price(players):
 
@@ -128,8 +141,11 @@ def get_previous_price(universe_id):
     cursor.execute("""
     SELECT price
     FROM price_history
+
     WHERE universe_id=?
+
     ORDER BY timestamp DESC
+
     LIMIT 1
     """,
     (universe_id,))
@@ -189,13 +205,24 @@ def generate_market():
         return []
 
 
-    ids = [
-        game["id"]
-        for game in games
-    ]
+    universe_ids = []
 
 
-    stats = get_game_stats(ids)
+    for game in games:
+
+        universe = convert_to_universe(
+            game["place_id"]
+        )
+
+
+        if universe:
+            universe_ids.append(universe)
+
+
+
+    stats = get_game_stats(
+        universe_ids
+    )
 
 
     market = []
@@ -203,11 +230,11 @@ def generate_market():
 
     for game in stats:
 
-        players = game.get("playing", 0)
+        players = game["playing"]
 
-        visits = game.get("visits", 0)
-
-        price = calculate_price(players)
+        price = calculate_price(
+            players
+        )
 
 
         old_price = get_previous_price(
@@ -218,12 +245,11 @@ def generate_market():
         if old_price:
 
             change = round(
-                ((price - old_price) / old_price) * 100,
+                ((price-old_price)/old_price)*100,
                 2
             )
 
         else:
-
             change = 0
 
 
@@ -236,7 +262,7 @@ def generate_market():
 
             "players": players,
 
-            "visits": visits,
+            "visits": game["visits"],
 
             "price": price,
 
@@ -250,14 +276,14 @@ def generate_market():
         market.append(stock)
 
 
+
     return market
 
 
 
-
-# =========================
+# ==========================
 # ROUTES
-# =========================
+# ==========================
 
 @app.route("/")
 def home():
@@ -288,9 +314,13 @@ def history(game_id):
 
     cursor.execute("""
     SELECT price,timestamp
+
     FROM price_history
+
     WHERE universe_id=?
+
     ORDER BY timestamp DESC
+
     LIMIT 100
     """,
     (game_id,))
@@ -305,11 +335,8 @@ def history(game_id):
 
 
 
-
-# Start database
 init_db()
 
 
 if __name__ == "__main__":
-
     app.run()
