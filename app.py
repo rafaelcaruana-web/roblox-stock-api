@@ -3,18 +3,18 @@ import requests
 import sqlite3
 import time
 import math
+import threading
 from datetime import datetime
 
+
 app = Flask(__name__)
+
 
 DATABASE = "stocks.db"
 
 
-# =========================
-# ROBLOX STOCK LIST
-# =========================
-
 GAMES = {
+
     "GAGR": {
         "name": "Grow a Garden",
         "id": 7436755782
@@ -29,7 +29,13 @@ GAMES = {
         "name": "Murder Mystery 2",
         "id": 66654135
     }
+
 }
+
+
+
+# Stores latest market
+market_cache = []
 
 
 
@@ -40,7 +46,9 @@ GAMES = {
 def init_db():
 
     conn = sqlite3.connect(DATABASE)
+
     cursor = conn.cursor()
+
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS history (
@@ -51,14 +59,15 @@ def init_db():
 
         name TEXT,
 
-        players INTEGER,
-
         price REAL,
+
+        players INTEGER,
 
         timestamp INTEGER
 
     )
     """)
+
 
     conn.commit()
     conn.close()
@@ -68,66 +77,41 @@ def init_db():
 def save_history(stock):
 
     conn = sqlite3.connect(DATABASE)
+
     cursor = conn.cursor()
+
 
     cursor.execute("""
     INSERT INTO history
+
     (
         universe_id,
         name,
-        players,
         price,
+        players,
         timestamp
     )
 
     VALUES (?,?,?,?,?)
     """,
+
     (
         stock["id"],
         stock["name"],
-        stock["players"],
         stock["price"],
+        stock["players"],
         int(time.time())
     ))
+
 
     conn.commit()
     conn.close()
 
 
 
-def previous_price(game_id):
-
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
-
-    cursor.execute("""
-    SELECT price
-    FROM history
-
-    WHERE universe_id=?
-
-    ORDER BY timestamp DESC
-
-    LIMIT 1 OFFSET 1
-    """,
-    (game_id,))
-
-
-    result = cursor.fetchone()
-
-    conn.close()
-
-
-    if result:
-        return result[0]
-
-    return None
-
-
-
 
 # =========================
-# PRICE SYSTEM
+# PRICE
 # =========================
 
 def calculate_price(players):
@@ -145,134 +129,143 @@ def calculate_price(players):
 
 
 # =========================
-# ROBLOX DATA
+# ROBLOX API
 # =========================
 
 def get_games():
 
     ids = ",".join(
-        str(game["id"])
-        for game in GAMES.values()
+        str(x["id"])
+        for x in GAMES.values()
     )
 
 
     url = (
         "https://games.roblox.com/v1/games"
-        f"?universeIds={ids}"
+        "?universeIds=" + ids
     )
 
 
-    response = requests.get(url)
+    try:
+
+        response = requests.get(
+            url,
+            timeout=5
+        )
 
 
-    if response.status_code != 200:
+        return response.json().get(
+            "data",
+            []
+        )
 
-        print(response.text)
+
+    except Exception as e:
+
+        print(e)
 
         return []
 
 
-    return response.json().get("data",[])
-
-
 
 
 # =========================
-# CREATE MARKET
+# UPDATE MARKET
 # =========================
 
-def create_market():
+def update_market():
 
-    games = get_games()
-
-    market = []
+    global market_cache
 
 
-    for game in games:
+    while True:
 
-        players = game.get(
-            "playing",
-            0
-        )
-
-        visits = game.get(
-            "visits",
-            0
-        )
+        print("Updating stocks...")
 
 
-        # Remove fake/dead games
-        if players == 0 and visits < 1000000:
-            continue
+        games = get_games()
+
+
+        new_market = []
 
 
 
-        price = calculate_price(
-            players
-        )
+        for game in games:
 
 
-        old = previous_price(
-            game["id"]
-        )
-
-
-        if old and old > 0:
-
-            change = round(
-                ((price-old)/old)*100,
-                2
+            players = game.get(
+                "playing",
+                0
             )
 
-        else:
 
-            change = 0
-
-
-
-        symbol = "UNKNOWN"
+            visits = game.get(
+                "visits",
+                0
+            )
 
 
-        for ticker, info in GAMES.items():
-
-            if info["id"] == game["id"]:
-
-                symbol = ticker
+            if players == 0 and visits < 1000000:
+                continue
 
 
 
-        stock = {
-
-            "symbol": symbol,
-
-            "name": game["name"],
-
-            "id": game["id"],
-
-            "players": players,
-
-            "visits": visits,
-
-            "price": price,
-
-            "change": change
-
-        }
+            symbol = "UNKNOWN"
 
 
-        save_history(stock)
+            for ticker,data in GAMES.items():
 
-        market.append(stock)
+                if data["id"] == game["id"]:
+
+                    symbol = ticker
 
 
 
-    market.sort(
-        key=lambda x: x["players"],
-        reverse=True
-    )
+            stock = {
+
+                "symbol": symbol,
+
+                "name": game["name"],
+
+                "id": game["id"],
+
+                "players": players,
+
+                "visits": visits,
+
+                "price": calculate_price(players),
+
+                "change": 0
+
+            }
 
 
-    return market
+            save_history(stock)
+
+
+            new_market.append(stock)
+
+
+
+        new_market.sort(
+            key=lambda x:x["players"],
+            reverse=True
+        )
+
+
+        market_cache = new_market
+
+
+        print(
+            "Stocks updated:",
+            len(market_cache)
+        )
+
+
+        # UPDATE EVERY 10 SECONDS
+
+        time.sleep(10)
+
 
 
 
@@ -297,7 +290,7 @@ def stocks():
         datetime.now().isoformat(),
 
         "stocks":
-        create_market()
+        market_cache
 
     })
 
@@ -307,6 +300,7 @@ def stocks():
 def history(id):
 
     conn = sqlite3.connect(DATABASE)
+
     cursor = conn.cursor()
 
 
@@ -320,11 +314,13 @@ def history(id):
     ORDER BY timestamp DESC
 
     LIMIT 100
+
     """,
     (id,))
 
 
     data = cursor.fetchall()
+
 
     conn.close()
 
@@ -333,7 +329,19 @@ def history(id):
 
 
 
+
+# =========================
+# START
+# =========================
+
 init_db()
+
+
+threading.Thread(
+    target=update_market,
+    daemon=True
+).start()
+
 
 
 if __name__ == "__main__":
