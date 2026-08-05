@@ -36,11 +36,6 @@ GAMES = {
 		"id": 4924922222
 	},
 
-	"ARS": {
-		"name": "Arsenal",
-		"id": 286090429
-	},
-
 	"TSH": {
 		"name": "Tower of Hell",
 		"id": 1962086868
@@ -54,6 +49,11 @@ GAMES = {
 	"MEEP": {
 		"name": "MeepCity",
 		"id": 370731277
+	},
+
+	"PIGGY": {
+		"name": "Piggy",
+		"id": 4623386862
 	}
 }
 
@@ -136,7 +136,7 @@ def calculate_price(players):
 	else:
 		base = players / 400
 
-	# Small random market movement
+	# Small market movement
 	base *= random.uniform(0.98, 1.02)
 
 	return round(base, 2)
@@ -155,7 +155,8 @@ def get_games():
 		response = requests.get(url, timeout=10)
 		data = response.json().get("data", [])
 
-		print(f"Fetched {len(data)} games from Roblox")
+		print("Roblox returned:", [g["name"] for g in data])
+
 		return data
 
 	except Exception as e:
@@ -174,8 +175,8 @@ def create_market():
 	for game in games:
 		players = game.get("playing", 0)
 
-		# Skip completely dead games
-		if players == 0:
+		# Ignore dead games
+		if players < 50:
 			continue
 
 		price = calculate_price(players)
@@ -221,6 +222,7 @@ def home():
 def stocks():
 	return jsonify({
 		"updated": datetime.now().isoformat(),
+		"count": len(create_market()),
 		"stocks": create_market()
 	})
 
