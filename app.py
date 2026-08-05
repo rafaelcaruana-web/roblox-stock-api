@@ -15,6 +15,7 @@ DATABASE = "stocks.db"
 # ROBLOX STOCK LIST
 # =========================
 
+
 GAMES = {
 	"GAGR": {
 		"name": "Grow a Garden",
@@ -29,31 +30,6 @@ GAMES = {
 	"MM2": {
 		"name": "Murder Mystery 2",
 		"id": 66654135
-	},
-
-	"BF": {
-		"name": "Blox Fruits",
-		"id": 994732206
-	},
-
-	"DOORS": {
-		"name": "DOORS",
-		"id": 6516141723
-	},
-
-	"PETS": {
-		"name": "Pet Simulator 99",
-		"id": 8737899170
-	},
-
-	"TSB": {
-		"name": "The Strongest Battlegrounds",
-		"id": 10449761463
-	},
-
-	"BLUE": {
-		"name": "Blue Lock Rivals",
-		"id": 14915220621
 	},
 
 	"BROOK": {
@@ -76,21 +52,23 @@ GAMES = {
 		"id": 606849621
 	},
 
-	"RIVALS": {
-		"name": "RIVALS",
-		"id": 17625359962
+	"BEE": {
+		"name": "Bee Swarm Simulator",
+		"id": 1537690962
 	},
 
-	"FISCH": {
-		"name": "Fisch",
-		"id": 16732694052
+	"PIGGY": {
+		"name": "Piggy",
+		"id": 4623386862
 	},
 
-	"BEDWARS": {
-		"name": "BedWars",
-		"id": 6872265039
+	"MEEP": {
+		"name": "MeepCity",
+		"id": 370731277
 	}
 }
+
+
 
 
 # =========================
@@ -250,6 +228,7 @@ def create_market():
 			"price": price,
 			"change": change
 		}
+		print(game["name"], players)
 
 		save_history(stock)
 		market.append(stock)
