@@ -12,14 +12,13 @@ DATABASE = "stocks.db"
 
 
 # =========================
-# ROBLOX STOCK LIST
+# WORKING ROBLOX STOCKS
 # =========================
 
-
 GAMES = {
-	"GAGR": {
-		"name": "Grow a Garden",
-		"id": 7436755782
+	"MM2": {
+		"name": "Murder Mystery 2",
+		"id": 66654135
 	},
 
 	"ADPT": {
@@ -27,9 +26,9 @@ GAMES = {
 		"id": 383310974
 	},
 
-	"MM2": {
-		"name": "Murder Mystery 2",
-		"id": 66654135
+	"GAGR": {
+		"name": "Grow a Garden",
+		"id": 7436755782
 	},
 
 	"BROOK": {
@@ -52,32 +51,11 @@ GAMES = {
 		"id": 606849621
 	},
 
-	"BEE": {
-		"name": "Bee Swarm Simulator",
-		"id": 1537690962
-	},
-
-	"PIGGY": {
-		"name": "Piggy",
-		"id": 4623386862
-	},
-
 	"MEEP": {
 		"name": "MeepCity",
 		"id": 370731277
 	}
 }
-
-
-
-
-# =========================
-# CACHE
-# =========================
-
-market_cache = []
-last_update = 0
-CACHE_TIME = 20
 
 
 # =========================
@@ -142,33 +120,26 @@ def previous_price(game_id):
 
 
 # =========================
-# PRICE SYSTEM
+# BETTER PRICE SYSTEM
 # =========================
 
 def calculate_price(players):
-
 	if players <= 0:
 		return 1.00
 
-	if players < 500:
-		base = players / 50
-
-	elif players < 5000:
+	if players < 1000:
+		base = players / 20
+	elif players < 10000:
 		base = players / 40
-
-	elif players < 50000:
-		base = players / 60
-
-	elif players < 200000:
-		base = players / 120
-
+	elif players < 100000:
+		base = players / 80
 	else:
 		base = players / 400
 
-	# Small market volatility
-	volatility = random.uniform(0.97, 1.03)
+	# Small random market movement
+	base *= random.uniform(0.98, 1.02)
 
-	return round(base * volatility, 2)
+	return round(base, 2)
 
 
 # =========================
@@ -176,13 +147,17 @@ def calculate_price(players):
 # =========================
 
 def get_games():
-	ids = ",".join(str(game["id"]) for game in GAMES.values())
+	ids = ",".join(str(g["id"]) for g in GAMES.values())
 
 	url = f"https://games.roblox.com/v1/games?universeIds={ids}"
 
 	try:
 		response = requests.get(url, timeout=10)
-		return response.json().get("data", [])
+		data = response.json().get("data", [])
+
+		print(f"Fetched {len(data)} games from Roblox")
+		return data
+
 	except Exception as e:
 		print("Roblox API error:", e)
 		return []
@@ -197,15 +172,13 @@ def create_market():
 	market = []
 
 	for game in games:
-
 		players = game.get("playing", 0)
-		visits = game.get("visits", 0)
 
-		if players == 0 and visits < 1000000:
+		# Skip completely dead games
+		if players == 0:
 			continue
 
 		price = calculate_price(players)
-
 		old = previous_price(game["id"])
 
 		if old and old > 0:
@@ -214,7 +187,6 @@ def create_market():
 			change = 0
 
 		symbol = "UNK"
-
 		for ticker, info in GAMES.items():
 			if info["id"] == game["id"]:
 				symbol = ticker
@@ -224,11 +196,10 @@ def create_market():
 			"name": game["name"],
 			"id": game["id"],
 			"players": players,
-			"visits": visits,
+			"visits": game.get("visits", 0),
 			"price": price,
 			"change": change
 		}
-		print(game["name"], players)
 
 		save_history(stock)
 		market.append(stock)
@@ -248,18 +219,9 @@ def home():
 
 @app.route("/stocks")
 def stocks():
-	global market_cache, last_update
-
-	now = time.time()
-
-	if not market_cache or now - last_update > CACHE_TIME:
-		market_cache = create_market()
-		last_update = now
-
 	return jsonify({
 		"updated": datetime.now().isoformat(),
-		"count": len(market_cache),
-		"stocks": market_cache
+		"stocks": create_market()
 	})
 
 
