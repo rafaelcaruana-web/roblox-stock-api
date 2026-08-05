@@ -168,14 +168,15 @@ def get_games():
 # CREATE MARKET
 # =========================
 
+
 def create_market():
 	games = get_games()
 	market = []
 
+	# Real Roblox games
 	for game in games:
 		players = game.get("playing", 0)
 
-		# Ignore dead games
 		if players < 50:
 			continue
 
@@ -185,7 +186,7 @@ def create_market():
 		if old and old > 0:
 			change = round(((price - old) / old) * 100, 2)
 		else:
-			change = 0
+			change = round(random.uniform(-3, 3), 2)
 
 		symbol = "UNK"
 		for ticker, info in GAMES.items():
@@ -205,8 +206,38 @@ def create_market():
 		save_history(stock)
 		market.append(stock)
 
-	market.sort(key=lambda x: x["players"], reverse=True)
+
+	# Extra market stocks (always available)
+	extras = [
+		("BROOK", "Brookhaven RP", 185.42, 2.14),
+		("JAIL", "Jailbreak", 58.76, -1.33),
+		("TSH", "Tower of Hell", 24.91, 0.87),
+		("ARS", "Arsenal", 41.55, -0.52),
+		("MEEP", "MeepCity", 12.34, 4.21),
+		("PIGGY", "Piggy", 18.67, -2.05),
+		("BEE", "Bee Swarm Simulator", 33.22, 1.44)
+	]
+
+	for symbol, name, base_price, base_change in extras:
+
+		price = round(base_price * random.uniform(0.97, 1.03), 2)
+		change = round(base_change + random.uniform(-0.8, 0.8), 2)
+
+		market.append({
+			"symbol": symbol,
+			"name": name,
+			"id": 900000000 + len(market),
+			"players": random.randint(500, 50000),
+			"visits": random.randint(1000000, 5000000000),
+			"price": price,
+			"change": change
+		})
+
+
+	market.sort(key=lambda x: x["price"], reverse=True)
 	return market
+
+
 
 
 # =========================
